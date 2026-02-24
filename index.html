@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频等分剪裁工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: backgroundMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes backgroundMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.85;
+            animation: fadeIn 1s ease-out 0.3s both;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            color: #2c5364;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 上传区域 */
+        .upload-zone {
+            border: 2px dashed #b0bec5;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #2c5364;
+            background: #e8f4f8;
+        }
+
+        .upload-zone .icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+        }
+
+        .upload-zone p {
+            color: #607d8b;
+            font-size: 0.95rem;
+        }
+
+        .upload-zone .hint {
+            font-size: 0.82rem;
+            color: #90a4ae;
+            margin-top: 8px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Tab 切换 */
+        .source-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .source-tab {
+            padding: 10px 24px;
+            border: none;
+            background: none;
+            font-size: 0.95rem;
+            color: #90a4ae;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .source-tab:hover {
+            color: #37474f;
+        }
+
+        .source-tab.active {
+            color: #2c5364;
+            font-weight: 600;
+            border-bottom-color: #2c5364;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* URL 输入 */
+        .url-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .url-input-group input[type="url"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #cfd8dc;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .url-input-group input[type="url"]:focus {
+            border-color: #2c5364;
+        }
+
+        /* 视频预览 */
+        .video-preview {
+            display: none;
+        }
+
+        .video-preview.active {
+            display: block;
+        }
+
+        .video-preview video {
+            width: 100%;
+            border-radius: 10px;
+            background: #000;
+            max-height: 400px;
+        }
+
+        .video-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 14px;
+            padding: 12px 16px;
+            background: #f0f4f8;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #37474f;
+        }
+
+        .video-info span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 参数设置 */
+        .settings {
+            display: none;
+        }
+
+        .settings.active {
+            display: block;
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .setting-row label {
+            font-size: 0.95rem;
+            color: #37474f;
+            white-space: nowrap;
+        }
+
+        .setting-row input[type="number"] {
+            width: 100px;
+            padding: 10px 14px;
+            border: 2px solid #cfd8dc;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .setting-row input[type="number"]:focus {
+            border-color: #2c5364;
+        }
+
+        .setting-row select {
+            padding: 10px 14px;
+            border: 2px solid #cfd8dc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .setting-row select:focus {
+            border-color: #2c5364;
+        }
+
+        .segment-info {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #1565c0;
+            display: none;
+        }
+
+        .segment-info.active {
+            display: block;
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 12px 32px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2c5364, #203a43);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(44, 83, 100, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #43a047, #2e7d32);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(46, 125, 50, 0.4);
+        }
+
+        .btn-small {
+            padding: 8px 18px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+        }
+
+        .actions {
+            display: none;
+            margin-top: 18px;
+        }
+
+        .actions.active {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* 进度条 */
+        .progress-section {
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #2c5364, #43a047);
+            border-radius: 6px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            color: #546e7a;
+            text-align: center;
+        }
+
+        /* 结果区域 */
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .results-header h2 {
+            margin-bottom: 0;
+        }
+
+        .segment-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .segment-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .segment-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        .segment-item video {
+            width: 100%;
+            max-height: 200px;
+            background: #000;
+        }
+
+        .segment-item-info {
+            padding: 12px;
+        }
+
+        .segment-item-info .title {
+            font-weight: 600;
+            color: #37474f;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
+        }
+
+        .segment-item-info .meta {
+            font-size: 0.82rem;
+            color: #90a4ae;
+            margin-bottom: 10px;
+        }
+
+        /* Loading 提示 */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-box {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #2c5364;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-box p {
+            color: #546e7a;
+            font-size: 0.95rem;
+        }
+
+        /* 重置按钮 */
+        .reset-link {
+            color: #90a4ae;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: underline;
+            background: none;
+            border: none;
+            margin-top: 10px;
+        }
+
+        .reset-link:hover {
+            color: #546e7a;
+        }
+
+        /* 响应式 */
+        @media (max-width: 600px) {
+            .header h1 { font-size: 1.6rem; }
+            .card { padding: 20px; }
+            .segment-list { grid-template-columns: 1fr; }
+            .setting-row { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-box">
+            <div class="spinner"></div>
+            <p id="loadingText">正在加载 FFmpeg，请稍候...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>&#9986; 视频等分剪裁工具</h1>
+            <p>上传视频，指定每段秒数，一键等分切割下载</p>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="card" id="uploadCard">
+            <h2>&#128193; 导入视频</h2>
+            <div class="source-tabs">
+                <button class="source-tab active" data-tab="file">本地上传</button>
+                <button class="source-tab" data-tab="url">在线地址</button>
+            </div>
+            <div class="tab-content active" id="tabFile">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="icon">&#127909;</div>
+                    <p>点击此处或拖拽视频文件到这里</p>
+                    <p class="hint">支持 MP4 / MOV / MKV / AVI / WebM 格式</p>
+                </div>
+                <input type="file" id="fileInput" accept="video/*">
+            </div>
+            <div class="tab-content" id="tabUrl">
+                <div class="url-input-group">
+                    <input type="url" id="videoUrlInput" placeholder="请输入视频地址，如 https://example.com/video.mp4">
+                    <button class="btn btn-primary" id="loadUrlBtn">加载</button>
+                </div>
+                <p class="hint" style="margin-top:10px;color:#90a4ae;font-size:0.82rem;">支持直链视频地址（MP4 / WebM 等），需允许跨域访问</p>
+            </div>
+        </div>
+
+        <!-- 视频预览 -->
+        <div class="card video-preview" id="previewCard">
+            <h2>&#127916; 视频预览</h2>
+            <video id="videoPlayer" controls></video>
+            <div class="video-info" id="videoInfo"></div>
+            <button class="reset-link" id="resetBtn">&#8592; 重新选择视频</button>
+        </div>
+
+        <!-- 参数设置 -->
+        <div class="card settings" id="settingsCard">
+            <h2>&#9881; 剪裁设置</h2>
+            <div class="setting-row">
+                <label for="segmentDuration">每段时长（秒）：</label>
+                <input type="number" id="segmentDuration" min="1" value="30" step="1">
+                <label>秒</label>
+            </div>
+            <div class="setting-row" style="margin-top:14px;">
+                <label for="resolutionSelect">输出分辨率：</label>
+                <select id="resolutionSelect">
+                    <option value="">保持原始</option>
+                    <option value="1920:1080">1920x1080 (1080p)</option>
+                    <option value="1280:720">1280x720 (720p)</option>
+                    <option value="854:480">854x480 (480p)</option>
+                    <option value="640:360">640x360 (360p)</option>
+                    <option value="custom">自定义...</option>
+                </select>
+            </div>
+            <div class="setting-row custom-resolution" id="customResRow" style="margin-top:10px;display:none;">
+                <label>宽：</label>
+                <input type="number" id="customWidth" min="1" value="1280" step="2" style="width:80px;">
+                <label>高：</label>
+                <input type="number" id="customHeight" min="1" value="720" step="2" style="width:80px;">
+                <label style="font-size:0.82rem;color:#90a4ae;">（像素）</label>
+            </div>
+            <div class="segment-info" id="segmentInfo"></div>
+            <div class="actions" id="actionsArea">
+                <button class="btn btn-primary" id="startBtn">&#9986; 开始剪裁</button>
+            </div>
+        </div>
+
+        <!-- 进度展示 -->
+        <div class="card progress-section" id="progressCard">
+            <h2>&#9203; 剪裁进度</h2>
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p class="progress-text" id="progressText">准备中...</p>
+        </div>
+
+        <!-- 结果区域 -->
+        <div class="card results-section" id="resultsCard">
+            <div class="results-header">
+                <h2>&#9989; 剪裁完成</h2>
+                <button class="btn btn-secondary btn-small" id="downloadAllBtn">&#11015; 全部下载</button>
+            </div>
+            <div class="segment-list" id="segmentList"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========== FFmpeg 加载 ==========
+        // 使用 FFmpeg.wasm v0.12 (ESM)
+        let ffmpeg = null;
+        let ffmpegLoaded = false;
+
+        async function loadFFmpeg() {
+            showLoading('正在加载 FFmpeg 引擎，首次使用可能需要较长时间...');
+            try {
+                // 动态 import FFmpeg.wasm v0.12 ESM 模块
+                const { FFmpeg } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
+                const { toBlobURL } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js');
+
+                ffmpeg = new FFmpeg();
+
+                // 监听日志
+                ffmpeg.on('log', ({ message }) => {
+                    console.log('[FFmpeg]', message);
+                });
+
+                // 监听进度
+                ffmpeg.on('progress', ({ progress }) => {
+                    if (progress > 0 && progress <= 1) {
+                        updateSubProgress(progress);
+                    }
+                });
+
+                showLoading('正在下载 FFmpeg 核心文件...');
+
+                const coreURL = await toBlobURL(
+                    'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+                    'text/javascript'
+                );
+                const wasmURL = await toBlobURL(
+                    'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+                    'application/wasm'
+                );
+
+                // 构建自包含的 Worker 脚本（内联所有依赖，避免跨域 import 问题）
+                const workerScript = buildWorkerScript();
+                const classWorkerBlob = new Blob([workerScript], { type: 'text/javascript' });
+                const classWorkerURL = URL.createObjectURL(classWorkerBlob);
+
+                showLoading('正在初始化 FFmpeg...');
+                await ffmpeg.load({ classWorkerURL, coreURL, wasmURL });
+                ffmpegLoaded = true;
+                hideLoading();
+                console.log('FFmpeg loaded successfully');
+            } catch (e) {
+                hideLoading();
+                console.error('FFmpeg load error:', e);
+                alert('FFmpeg 加载失败，请确保网络连接正常并刷新页面重试。\n\n错误信息: ' + e.message);
+            }
+        }
+
+        // 构建内联 Worker 脚本，将 const.js / errors.js / worker.js 合并为一个自包含模块
+        function buildWorkerScript() {
+            return `
+// ---- 内联 const.js ----
+const CORE_URL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js";
+const FFMessageType = {
+    LOAD: "LOAD", EXEC: "EXEC", WRITE_FILE: "WRITE_FILE",
+    READ_FILE: "READ_FILE", DELETE_FILE: "DELETE_FILE", RENAME: "RENAME",
+    CREATE_DIR: "CREATE_DIR", LIST_DIR: "LIST_DIR", DELETE_DIR: "DELETE_DIR",
+    ERROR: "ERROR", DOWNLOAD: "DOWNLOAD", PROGRESS: "PROGRESS",
+    LOG: "LOG", MOUNT: "MOUNT", UNMOUNT: "UNMOUNT"
+};
+
+// ---- 内联 errors.js ----
+const ERROR_UNKNOWN_MESSAGE_TYPE = new Error("unknown message type");
+const ERROR_NOT_LOADED = new Error("ffmpeg is not loaded, call \\\`await ffmpeg.load()\\\` first");
+const ERROR_IMPORT_FAILURE = new Error("failed to import ffmpeg-core.js");
+
+// ---- 内联 worker.js ----
+let ffmpeg;
+
+const load = async ({ coreURL: _coreURL, wasmURL: _wasmURL, workerURL: _workerURL }) => {
+    const first = !ffmpeg;
+    try {
+        if (!_coreURL) _coreURL = CORE_URL;
+        importScripts(_coreURL);
+    } catch {
+        if (!_coreURL) _coreURL = CORE_URL.replace('/umd/', '/esm/');
+        self.createFFmpegCore = (await import(_coreURL)).default;
+        if (!self.createFFmpegCore) throw ERROR_IMPORT_FAILURE;
+    }
+    const coreURL = _coreURL;
+    const wasmURL = _wasmURL ? _wasmURL : _coreURL.replace(/.js$/g, ".wasm");
+    const workerURL = _workerURL ? _workerURL : _coreURL.replace(/.js$/g, ".worker.js");
+    ffmpeg = await self.createFFmpegCore({
+        mainScriptUrlOrBlob: coreURL + "#" + btoa(JSON.stringify({ wasmURL, workerURL })),
+    });
+    ffmpeg.setLogger((data) => self.postMessage({ type: FFMessageType.LOG, data }));
+    ffmpeg.setProgress((data) => self.postMessage({ type: FFMessageType.PROGRESS, data }));
+    return first;
+};
+
+const exec = ({ args, timeout = -1 }) => {
+    ffmpeg.setTimeout(timeout);
+    ffmpeg.exec(...args);
+    const ret = ffmpeg.ret;
+    ffmpeg.reset();
+    return ret;
+};
+const writeFile = ({ path, data }) => { ffmpeg.FS.writeFile(path, data); return true; };
+const readFile = ({ path, encoding }) => ffmpeg.FS.readFile(path, { encoding });
+const deleteFile = ({ path }) => { ffmpeg.FS.unlink(path); return true; };
+const rename = ({ oldPath, newPath }) => { ffmpeg.FS.rename(oldPath, newPath); return true; };
+const createDir = ({ path }) => { ffmpeg.FS.mkdir(path); return true; };
+const listDir = ({ path }) => {
+    const names = ffmpeg.FS.readdir(path);
+    const nodes = [];
+    for (const name of names) {
+        const stat = ffmpeg.FS.stat(path + "/" + name);
+        const isDir = ffmpeg.FS.isDir(stat.mode);
+        nodes.push({ name, isDir });
+    }
+    return nodes;
+};
+const deleteDir = ({ path }) => { ffmpeg.FS.rmdir(path); return true; };
+const mount = ({ fsType, options, mountPoint }) => {
+    const fs = ffmpeg.FS.filesystems[fsType];
+    if (!fs) return false;
+    ffmpeg.FS.mount(fs, options, mountPoint);
+    return true;
+};
+const unmount = ({ mountPoint }) => { ffmpeg.FS.unmount(mountPoint); return true; };
+
+self.onmessage = async ({ data: { id, type, data: _data } }) => {
+    const trans = [];
+    let data;
+    try {
+        if (type !== FFMessageType.LOAD && !ffmpeg) throw ERROR_NOT_LOADED;
+        switch (type) {
+            case FFMessageType.LOAD: data = await load(_data); break;
+            case FFMessageType.EXEC: data = exec(_data); break;
+            case FFMessageType.WRITE_FILE: data = writeFile(_data); break;
+            case FFMessageType.READ_FILE: data = readFile(_data); break;
+            case FFMessageType.DELETE_FILE: data = deleteFile(_data); break;
+            case FFMessageType.RENAME: data = rename(_data); break;
+            case FFMessageType.CREATE_DIR: data = createDir(_data); break;
+            case FFMessageType.LIST_DIR: data = listDir(_data); break;
+            case FFMessageType.DELETE_DIR: data = deleteDir(_data); break;
+            case FFMessageType.MOUNT: data = mount(_data); break;
+            case FFMessageType.UNMOUNT: data = unmount(_data); break;
+            default: throw ERROR_UNKNOWN_MESSAGE_TYPE;
+        }
+    } catch (e) {
+        self.postMessage({ id, type: FFMessageType.ERROR, data: e.toString() });
+        return;
+    }
+    if (data instanceof Uint8Array) trans.push(data.buffer);
+    self.postMessage({ id, type, data }, trans);
+};
+`;
+        }
+
+        // ========== UI 状态管理 ==========
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadCard = document.getElementById('uploadCard');
+        const previewCard = document.getElementById('previewCard');
+        const settingsCard = document.getElementById('settingsCard');
+        const progressCard = document.getElementById('progressCard');
+        const resultsCard = document.getElementById('resultsCard');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoInfo = document.getElementById('videoInfo');
+        const segmentDuration = document.getElementById('segmentDuration');
+        const segmentInfo = document.getElementById('segmentInfo');
+        const actionsArea = document.getElementById('actionsArea');
+        const startBtn = document.getElementById('startBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const segmentList = document.getElementById('segmentList');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingTextEl = document.getElementById('loadingText');
+        const videoUrlInput = document.getElementById('videoUrlInput');
+        const loadUrlBtn = document.getElementById('loadUrlBtn');
+        const resolutionSelect = document.getElementById('resolutionSelect');
+        const customResRow = document.getElementById('customResRow');
+        const customWidth = document.getElementById('customWidth');
+        const customHeight = document.getElementById('customHeight');
+
+        let uploadedFile = null;   // File 对象（本地上传）
+        let videoSourceUrl = null; // 在线视频地址
+        let videoFileName = '';    // 用于命名输出文件
+        let videoDuration = 0;
+        let resultBlobs = [];
+
+        function showLoading(text) {
+            loadingTextEl.textContent = text;
+            loadingOverlay.classList.add('active');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.remove('active');
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            return `${m}:${String(s).padStart(2,'0')}`;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        function getFileExtension(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            return ext || 'mp4';
+        }
+
+        // ========== Tab 切换 ==========
+        document.querySelectorAll('.source-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.source-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tabFile').classList.toggle('active', tab.dataset.tab === 'file');
+                document.getElementById('tabUrl').classList.toggle('active', tab.dataset.tab === 'url');
+            });
+        });
+
+        // ========== 分辨率切换 ==========
+        resolutionSelect.addEventListener('change', () => {
+            customResRow.style.display = resolutionSelect.value === 'custom' ? 'flex' : 'none';
+        });
+
+        function getResolution() {
+            const val = resolutionSelect.value;
+            if (!val) return null; // 保持原始
+            if (val === 'custom') {
+                const w = parseInt(customWidth.value);
+                const h = parseInt(customHeight.value);
+                if (w > 0 && h > 0) return `${w}:${h}`;
+                return null;
+            }
+            return val;
+        }
+
+        // ========== 上传交互 ==========
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                handleFile(files[0]);
+            } else {
+                alert('请上传视频文件');
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            uploadedFile = file;
+            videoSourceUrl = null;
+            videoFileName = file.name;
+            const url = URL.createObjectURL(file);
+            videoPlayer.src = url;
+
+            videoPlayer.onloadedmetadata = () => {
+                videoDuration = videoPlayer.duration;
+                videoInfo.innerHTML = `
+                    <span><strong>文件名：</strong>${file.name}</span>
+                    <span><strong>大小：</strong>${formatFileSize(file.size)}</span>
+                    <span><strong>时长：</strong>${formatTime(videoDuration)}</span>
+                    <span><strong>分辨率：</strong>${videoPlayer.videoWidth}x${videoPlayer.videoHeight}</span>
+                `;
+                uploadCard.style.display = 'none';
+                previewCard.classList.add('active');
+                settingsCard.classList.add('active');
+                actionsArea.classList.add('active');
+                updateSegmentInfo();
+            };
+        }
+
+        // ========== URL 加载 ==========
+        loadUrlBtn.addEventListener('click', handleUrl);
+        videoUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleUrl();
+        });
+
+        function handleUrl() {
+            const url = videoUrlInput.value.trim();
+            if (!url) { alert('请输入视频地址'); return; }
+            try { new URL(url); } catch { alert('请输入有效的 URL'); return; }
+
+            uploadedFile = null;
+            videoSourceUrl = url;
+            // 从 URL 提取文件名
+            try {
+                const pathname = new URL(url).pathname;
+                videoFileName = pathname.split('/').pop() || 'video.mp4';
+            } catch { videoFileName = 'video.mp4'; }
+
+            videoPlayer.crossOrigin = 'anonymous';
+            videoPlayer.src = url;
+
+            videoPlayer.onerror = () => {
+                alert('视频加载失败，请检查地址是否正确、是否允许跨域访问');
+            };
+
+            videoPlayer.onloadedmetadata = () => {
+                videoDuration = videoPlayer.duration;
+                videoInfo.innerHTML = `
+                    <span><strong>来源：</strong>在线视频</span>
+                    <span><strong>时长：</strong>${formatTime(videoDuration)}</span>
+                    <span><strong>分辨率：</strong>${videoPlayer.videoWidth}x${videoPlayer.videoHeight}</span>
+                `;
+                uploadCard.style.display = 'none';
+                previewCard.classList.add('active');
+                settingsCard.classList.add('active');
+                actionsArea.classList.add('active');
+                updateSegmentInfo();
+            };
+        }
+
+        resetBtn.addEventListener('click', () => {
+            resultBlobs.forEach(b => URL.revokeObjectURL(b.url));
+            resultBlobs = [];
+
+            uploadedFile = null;
+            videoSourceUrl = null;
+            videoFileName = '';
+            videoDuration = 0;
+            videoPlayer.src = '';
+            videoPlayer.removeAttribute('crossorigin');
+            fileInput.value = '';
+            videoUrlInput.value = '';
+            segmentList.innerHTML = '';
+
+            uploadCard.style.display = '';
+            previewCard.classList.remove('active');
+            settingsCard.classList.remove('active');
+            actionsArea.classList.remove('active');
+            progressCard.classList.remove('active');
+            resultsCard.classList.remove('active');
+            startBtn.disabled = false;
+        });
+
+        // ========== 参数设置 ==========
+        segmentDuration.addEventListener('input', updateSegmentInfo);
+
+        function updateSegmentInfo() {
+            const n = parseInt(segmentDuration.value);
+            if (!n || n <= 0 || !videoDuration) {
+                segmentInfo.classList.remove('active');
+                return;
+            }
+            const count = Math.ceil(videoDuration / n);
+            const lastDuration = videoDuration - (count - 1) * n;
+            let text = `总时长 ${formatTime(videoDuration)}，将切割为 <strong>${count}</strong> 段，每段 ${n} 秒`;
+            if (count > 1 && lastDuration < n) {
+                text += `（最后一段约 ${lastDuration.toFixed(1)} 秒）`;
+            }
+            segmentInfo.innerHTML = text;
+            segmentInfo.classList.add('active');
+        }
+
+        // ========== 子进度追踪 ==========
+        let currentSegmentIndex = 0;
+        let totalSegments = 0;
+
+        function updateSubProgress(subProgress) {
+            if (totalSegments === 0) return;
+            const overallProgress = (currentSegmentIndex + subProgress) / totalSegments;
+            progressBar.style.width = (overallProgress * 100).toFixed(1) + '%';
+        }
+
+        // ========== 剪裁流程 ==========
+        startBtn.addEventListener('click', startSplit);
+
+        async function startSplit() {
+            const n = parseInt(segmentDuration.value);
+            if (!n || n <= 0) {
+                alert('请输入有效的每段秒数');
+                return;
+            }
+            if (!uploadedFile && !videoSourceUrl) {
+                alert('请先上传视频或输入在线地址');
+                return;
+            }
+
+            // 如果 ffmpeg 还没加载，先加载
+            if (!ffmpegLoaded) {
+                await loadFFmpeg();
+                if (!ffmpegLoaded) return;
+            }
+
+            startBtn.disabled = true;
+            progressCard.classList.add('active');
+            resultsCard.classList.remove('active');
+
+            // 清理旧结果
+            resultBlobs.forEach(b => URL.revokeObjectURL(b.url));
+            resultBlobs = [];
+            segmentList.innerHTML = '';
+
+            const ext = getFileExtension(videoFileName);
+            const baseName = videoFileName.replace(/\.[^/.]+$/, '') || 'video';
+            totalSegments = Math.ceil(videoDuration / n);
+            currentSegmentIndex = 0;
+            const resolution = getResolution();
+            const needReencode = !!resolution;
+
+            progressText.textContent = '正在写入文件到内存...';
+            progressBar.style.width = '0%';
+
+            try {
+                const { fetchFile } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js');
+
+                // 根据来源获取文件数据
+                let fileData;
+                if (uploadedFile) {
+                    fileData = await fetchFile(uploadedFile);
+                } else {
+                    progressText.textContent = '正在下载在线视频...';
+                    fileData = await fetchFile(videoSourceUrl);
+                }
+                await ffmpeg.writeFile(`input.${ext}`, fileData);
+
+                // 输出统一为 mp4（重编码时）
+                const outExt = needReencode ? 'mp4' : ext;
+
+                for (let i = 0; i < totalSegments; i++) {
+                    currentSegmentIndex = i;
+                    const startTime = i * n;
+                    const duration = Math.min(n, videoDuration - startTime);
+                    const outputName = `${baseName}_${String(i + 1).padStart(3, '0')}.${outExt}`;
+
+                    progressText.textContent = `正在${needReencode ? '转码' : '切割'}第 ${i + 1} / ${totalSegments} 段...`;
+                    progressBar.style.width = ((i / totalSegments) * 100).toFixed(1) + '%';
+
+                    const args = [
+                        '-ss', String(startTime),
+                        '-i', `input.${ext}`,
+                        '-t', String(duration),
+                    ];
+
+                    if (needReencode) {
+                        // 需要缩放分辨率，必须重新编码
+                        args.push('-vf', `scale=${resolution}:force_original_aspect_ratio=decrease,pad=${resolution}:(ow-iw)/2:(oh-ih)/2:black`);
+                        args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+                        args.push('-c:a', 'aac', '-b:a', '128k');
+                    } else {
+                        args.push('-c', 'copy');
+                    }
+                    args.push('-avoid_negative_ts', 'make_zero', outputName);
+
+                    await ffmpeg.exec(args);
+
+                    const data = await ffmpeg.readFile(outputName);
+                    const mimeMap = {
+                        'mp4': 'video/mp4', 'mov': 'video/quicktime',
+                        'mkv': 'video/x-matroska', 'avi': 'video/x-msvideo',
+                        'webm': 'video/webm'
+                    };
+                    const mime = mimeMap[outExt] || 'video/mp4';
+                    const blob = new Blob([data.buffer], { type: mime });
+                    const url = URL.createObjectURL(blob);
+
+                    resultBlobs.push({ name: outputName, url, blob, startTime, duration });
+                    await ffmpeg.deleteFile(outputName);
+                }
+
+                await ffmpeg.deleteFile(`input.${ext}`);
+
+                progressBar.style.width = '100%';
+                progressText.textContent = '剪裁完成！';
+
+                showResults();
+
+            } catch (e) {
+                console.error('Split error:', e);
+                alert('剪裁过程出错: ' + e.message);
+                startBtn.disabled = false;
+            }
+        }
+
+        function showResults() {
+            resultsCard.classList.add('active');
+            segmentList.innerHTML = '';
+
+            resultBlobs.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'segment-item';
+                div.innerHTML = `
+                    <video src="${item.url}" controls preload="metadata"></video>
+                    <div class="segment-item-info">
+                        <div class="title">第 ${idx + 1} 段</div>
+                        <div class="meta">${formatTime(item.startTime)} - ${formatTime(item.startTime + item.duration)}　|　${formatFileSize(item.blob.size)}</div>
+                        <button class="btn btn-primary btn-small" onclick="downloadSegment(${idx})">&#11015; 下载</button>
+                    </div>
+                `;
+                segmentList.appendChild(div);
+            });
+
+            startBtn.disabled = false;
+        }
+
+        function downloadSegment(idx) {
+            const item = resultBlobs[idx];
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.download = item.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        downloadAllBtn.addEventListener('click', () => {
+            resultBlobs.forEach((item, idx) => {
+                setTimeout(() => downloadSegment(idx), idx * 300);
+            });
+        });
+
+        // ========== 页面加载时预加载 FFmpeg ==========
+        // 延迟加载，不阻塞页面渲染
+        window.addEventListener('load', () => {
+            setTimeout(() => loadFFmpeg(), 500);
+        });
+    </script>
+</body>
+</html>
